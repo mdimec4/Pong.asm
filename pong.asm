@@ -5,7 +5,7 @@ default rel
 %define SDL_RENDERER_PRESENTVSYNC   00000004h
 %define SDL_QUIT    100h
 
-section .rdata
+section .rodata
     message db 'Pong.ASM',0
     init_fail   db 'SDL fail: %s',0
 
