@@ -1,9 +1,22 @@
 default rel
 
+NULL equ 0
+
 %define SDL_INIT_VIDEO  00000020h
 %define SDL_RENDERER_ACCELERATED    00000002h
 %define SDL_RENDERER_PRESENTVSYNC   00000004h
 %define SDL_QUIT    100h
+
+
+; --- Configuration ---
+%define SCREEN_WIDTH 1024
+%define SCREEN_HEIGHT 768
+%define PADDLE_WIDTH 15
+%define PADDLE_HEIGHT 100
+%define BALL_SIZE 15
+%define PADDLE_SPEED 8
+%define BALL_SPEED_X 7
+%define BALL_SPEED_Y 7
 
 section .rodata
     message db 'Pong.ASM',0
@@ -11,6 +24,9 @@ section .rodata
 
 section .data
     isRunning   db  1
+    window      dq NULL
+    renderer    dq NULL
+    
 
 section .text
 
@@ -57,23 +73,19 @@ generate_output:
     push rbp
     mov rbp, rsp
 
-    mov [rbp-8], rdi ; strore renderer on stack
-    sub rsp, 16
-
-    mov rdi, [rbp-8] ; first parameter to this function is renderer
+    mov rdi, [rel renderer] ; first parameter to this function is renderer
     mov rsi, 64 ; R 
     mov rdx, 127 ; G 
     mov rcx, 0 ; B 
     mov r8, 255 ; A
     call SDL_SetRenderDrawColor wrt ..plt
 
-    mov rdi, [rbp-8] ; first parameter to this function is renderer
+    mov rdi, [rel renderer] ; first parameter to this function is renderer
     call SDL_RenderClear wrt ..plt
 
-    mov rdi, [rbp-8] ; first parameter to this function is renderer
+    mov rdi, [rel renderer] ; first parameter to this function is renderer
     call SDL_RenderPresent wrt ..plt
 
-    add rsp, 16
     pop rbp
     ret
 
@@ -94,12 +106,6 @@ print_sdl_err:
 main:
     push rbp
     mov rbp, rsp
-    
-    ; locals
-    sub rsp, 16
-    mov rax, 0
-    mov QWORD [rbp-8], rax ; window pointer
-    mov QWORD [rbp-16], rax ; renderer pointer
 
     ; SDL_Init
     mov rdi, SDL_INIT_VIDEO
@@ -115,8 +121,8 @@ main:
     lea rdi, [rel message]    ; pointer to message
     mov rsi, 100
     mov rdx, 100
-    mov rcx, 1024
-    mov r8, 768
+    mov rcx, SCREEN_WIDTH
+    mov r8, SCREEN_HEIGHT
     mov r9, 0
     call SDL_CreateWindow wrt ..plt
     test rax, rax
@@ -125,10 +131,10 @@ main:
     call print_sdl_err
     jmp .main_end
 .skip2:
-    mov [rbp-8], rax ; store window pointer
+    mov [rel window], rax ; store window pointer
 
     ; Create renderer
-    mov rdi, [rbp-8] ; window
+    mov rdi, [rel window] ; window
     mov rsi, -1
     mov rdx, SDL_RENDERER_ACCELERATED
     or rdx, SDL_RENDERER_PRESENTVSYNC
@@ -139,7 +145,7 @@ main:
     call print_sdl_err
     jmp .main_end
 .skip3:
-    mov [rbp-16], rax ; store renderer pointer
+    mov [rel renderer], rax ; store renderer pointer
 
 .loop1:
     mov al, [rel isRunning]
@@ -148,22 +154,20 @@ main:
     
     call process_input
     
-    mov rdi, [rbp-16] ; renderer as first parameter
     call generate_output
     
     jmp .loop1
 
 
 .main_end:
-    mov rdi, [rbp-16] ; renderer pointer
+    mov rdi, [rel renderer] ; renderer pointer
     call SDL_DestroyRenderer wrt ..plt
     
-    mov rdi, [rbp-8] ; window pointer
+    mov rdi, [rel window] ; window pointer
     call SDL_DestroyWindow wrt ..plt
 
     call SDL_Quit wrt ..plt
 
-    add rsp, 16
     pop rbp
 
     xor rax, rax
