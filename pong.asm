@@ -23,6 +23,7 @@ PADDLE2_X   equ     SCREEN_WIDTH - 20 - PADDLE_WIDTH
 BALL_X      equ     (SCREEN_WIDTH - BALL_SIZE) / 2
 BALL_Y      equ     (SCREEN_HEIGHT - BALL_SIZE) / 2
 SCREEN_WIDTH_HALF equ SCREEN_WIDTH / 2
+SCREEN_WIDTH_MINUS_50 equ SCREEN_WIDTH - 50
 
 section .rodata
     message     db 'Pong.ASM',0
@@ -275,6 +276,22 @@ render:
     ; void render_text(char* text /*(rdi)*/, int x /*(esi)/*, int y /*(edx)*/, int ptSize /*(ecx)*/);
     lea rdi, [rbp - 36] ; char buff[16]
     mov esi, 50
+    mov edx, 20
+    mov ecx, 64
+    call render_text
+
+    ; draw score right player (player 2)
+    lea rdi, [rbp - 36] ; char buff[16]
+    mov rsi, 16
+    lea rdx, [rel int_format]
+    mov ecx, [rel score1]
+    call snprintf wrt ..plt
+    mov ecx, 45
+    imul ecx
+    ; void render_text(char* text /*(rdi)*/, int x /*(esi)/*, int y /*(edx)*/, int ptSize /*(ecx)*/);
+    lea rdi, [rbp - 36] ; char buff[16]
+    mov esi, SCREEN_WIDTH_MINUS_50
+    sub esi, eax
     mov edx, 20
     mov ecx, 64
     call render_text
