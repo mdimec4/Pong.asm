@@ -53,6 +53,8 @@ extern time
 extern srand
 extern rand
 extern SDL_Init
+extern TTF_Init
+extern TTF_Quit
 extern SDL_CreateWindow
 extern SDL_CreateRenderer
 extern SDL_Log
@@ -94,7 +96,7 @@ process_input:
 
 
 
-generate_output:
+render:
     push rbp
     mov rbp, rsp
 
@@ -300,6 +302,15 @@ main:
     jmp .main_end
 .skip3:
     mov [rel renderer], rax ; store renderer pointer
+
+    ; init TTF
+    call TTF_Init wrt ..plt
+    cmp rax, 0
+    jge .skip4
+    ; handle error
+    call print_sdl_err
+    jmp .main_end
+.skip4:
     
     call reset_game_state
 
@@ -310,7 +321,7 @@ main:
     
     call process_input
     
-    call generate_output
+    call render
 
     mov rdi, 16 ; ~ 60 fps
     call SDL_Delay wrt ..plt
@@ -319,6 +330,8 @@ main:
 
 
 .main_end:
+    call TTF_Quit wrt ..plt
+
     mov rdi, [rel renderer] ; renderer pointer
     call SDL_DestroyRenderer wrt ..plt
     
