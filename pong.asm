@@ -1,6 +1,6 @@
 default rel
 
-NULL equ 0
+%define NULL 0
 
 %define SDL_INIT_VIDEO  00000020h
 %define SDL_RENDERER_ACCELERATED    00000002h
@@ -18,6 +18,12 @@ NULL equ 0
 %define BALL_SPEED_X 7
 %define BALL_SPEED_Y 7
 
+PADDLE_Y    equ     (SCREEN_HEIGHT - PADDLE_HEIGHT) / 2
+PADDLE2_X   equ     SCREEN_WIDTH - 20 - PADDLE_WIDTH
+BALL_X      equ     (SCREEN_WIDTH - BALL_SIZE) / 2
+BALL_Y      equ     (SCREEN_HEIGHT - BALL_SIZE) / 2
+SCREEN_WIDTH_HALF equ SCREEN_WIDTH / 2
+
 section .rodata
     message db 'Pong.ASM',0
     init_fail   db 'SDL fail: %s',0
@@ -26,11 +32,26 @@ section .data
     isRunning   db  1
     window      dq NULL
     renderer    dq NULL
-    
+
+section .bss
+    paddle1 resd    4 ; SDL_Rect for paddle left
+    paddle2 resd    4 ; SDL_Rect for paddle right
+    ball    resd    4 ; SDL_Rect for ball
+
+    ; Game variables
+    ballDirX    resd    1
+    ballDirY    resd    1
+    score1      resd    1
+    score2      resd    1
+
+        
 
 section .text
 
 ;extern printf
+extern time
+extern srand
+extern rand
 extern SDL_Init
 extern SDL_CreateWindow
 extern SDL_CreateRenderer
@@ -43,6 +64,8 @@ extern SDL_Quit
 extern SDL_SetRenderDrawColor
 extern SDL_RenderClear
 extern SDL_RenderPresent
+extern SDL_RenderFillRect
+extern SDL_Delay
 
 
 process_input:
@@ -69,10 +92,15 @@ process_input:
     pop rbp
     ret
 
+
+
 generate_output:
     push rbp
     mov rbp, rsp
 
+    sub rsp, 32
+
+    ; clear screen with green color
     mov rdi, [rel renderer] ; first parameter to this function is renderer
     mov rsi, 64 ; R 
     mov rdx, 127 ; G 
@@ -84,8 +112,54 @@ generate_output:
     call SDL_RenderClear wrt ..plt
 
     mov rdi, [rel renderer] ; first parameter to this function is renderer
+    mov rsi, 255 ; R 
+    mov rdx, 255 ; G 
+    mov rcx, 255 ; B 
+    mov r8, 255 ; A
+    call SDL_SetRenderDrawColor wrt ..plt
+
+    ; draw Net (center line)
+    mov dword [rbp - 4], 0 ; count
+.loop:
+    ; set rect
+    mov dword [rbp - 20], SCREEN_WIDTH_HALF ; rect.x
+    mov eax, [rbp - 4]; count
+    mov [rbp - 16], eax ; rect.y
+    mov dword [rbp - 12], 1 ; rect.w
+    mov dword [rbp - 8], 20 ; rect.h
+
+    mov rdi, [rel renderer]
+    lea rsi, [rbp - 20]
+    call SDL_RenderFillRect wrt ..plt
+
+    mov eax, [rbp - 4] ; count++
+    add eax, 40
+    mov [rbp-4], eax
+
+    cmp eax, SCREEN_HEIGHT
+    jl .loop
+
+    ; draw paddle1
+    mov rdi, [rel renderer]
+    lea rsi, [rel paddle1]
+    call SDL_RenderFillRect wrt ..plt
+
+    ; draw paddle2
+    mov rdi, [rel renderer]
+    lea rsi, [rel paddle2]
+    call SDL_RenderFillRect wrt ..plt
+
+    ; draw ball
+    mov rdi, [rel renderer]
+    lea rsi, [rel ball]
+    call SDL_RenderFillRect wrt ..plt
+
+
+
+    mov rdi, [rel renderer] ; first parameter to this function is renderer
     call SDL_RenderPresent wrt ..plt
 
+    add rsp, 32
     pop rbp
     ret
 
@@ -101,6 +175,86 @@ print_sdl_err:
     
     pop rbp
     ret
+
+
+ball_dir:
+    push rbp
+    mov rbp, rsp
+
+    call rand wrt ..plt ; result in rax
+    mov rcx, 2
+    cqo            ; sign-extend RAX into RDX:RAX
+    idiv rcx            ; quotient in RAX, remainder in RDX
+
+    test rdx, rdx
+    jz .zero
+    mov eax, -1
+    jmp .end
+
+.zero:
+    mov eax, 1
+    
+.end:
+    pop rbp
+    ret
+
+reset_game_state:
+    push rbp
+    mov rbp, rsp
+
+    ; Init paddls
+    mov dword [rel paddle1 + 0], 20 ; paddle1.x
+    mov dword [rel paddle1 + 4], PADDLE_Y ; paddle1.y
+    mov dword [rel paddle1 + 8], PADDLE_WIDTH ; paddle1.w
+    mov dword [rel paddle1 + 12], PADDLE_HEIGHT ; paddle1.h
+
+    mov dword [rel paddle2 + 0], PADDLE2_X ; paddle2.x
+    mov dword [rel paddle2 + 4], PADDLE_Y ; paddle2.y
+    mov dword [rel paddle2 + 8], PADDLE_WIDTH ; paddle2.w
+    mov dword [rel paddle2 + 12], PADDLE_HEIGHT ; paddle2.h
+
+    ; Init ball
+    mov dword [rel ball + 0], BALL_X ; ball.x
+    mov dword [rel ball + 4], BALL_Y ; ball.y
+    mov dword [rel ball + 8], BALL_SIZE ; ball.w
+    mov dword [rel ball + 12], BALL_SIZE ; ball.w
+
+    ; init pseudo random gen
+    mov rdi, NULL
+    call time wrt ..plt
+    mov rdi, rax
+    call srand wrt ..plt
+
+    call ball_dir
+    mov [rel ballDirX], eax
+
+    call ball_dir
+    mov [rel ballDirY], eax
+
+    mov dword [rel score1], 0
+    mov dword [rel score2], 0
+
+    mov byte [rel isRunning], 1
+
+    pop rbp
+    ret
+
+reset_ball:
+    push rbp
+    mov rbp, rsp
+
+    mov dword [rel ball + 0], BALL_X ; ball.x
+    mov dword [rel ball + 4], BALL_Y ; ball.y
+
+    call ball_dir
+    mov [rel ballDirX], eax
+
+    call ball_dir
+    mov [rel ballDirY], eax
+
+    pop rbp
+    ret
+
 
     global main
 main:
@@ -146,6 +300,8 @@ main:
     jmp .main_end
 .skip3:
     mov [rel renderer], rax ; store renderer pointer
+    
+    call reset_game_state
 
 .loop1:
     mov al, [rel isRunning]
@@ -155,6 +311,9 @@ main:
     call process_input
     
     call generate_output
+
+    mov rdi, 16 ; ~ 60 fps
+    call SDL_Delay wrt ..plt
     
     jmp .loop1
 
