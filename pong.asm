@@ -25,8 +25,10 @@ BALL_Y      equ     (SCREEN_HEIGHT - BALL_SIZE) / 2
 SCREEN_WIDTH_HALF equ SCREEN_WIDTH / 2
 
 section .rodata
-    message db 'Pong.ASM',0
+    message     db 'Pong.ASM',0
     init_fail   db 'SDL fail: %s',0
+    font_path   db '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',0
+    int_format  db '%d',0
 
 section .data
     isRunning   db  1
@@ -49,12 +51,11 @@ section .bss
 section .text
 
 ;extern printf
+extern snprintf
 extern time
 extern srand
 extern rand
 extern SDL_Init
-extern TTF_Init
-extern TTF_Quit
 extern SDL_CreateWindow
 extern SDL_CreateRenderer
 extern SDL_Log
@@ -67,7 +68,17 @@ extern SDL_SetRenderDrawColor
 extern SDL_RenderClear
 extern SDL_RenderPresent
 extern SDL_RenderFillRect
+extern SDL_RenderCopy
+extern SDL_DestroyTexture
+extern SDL_DestroySurface
 extern SDL_Delay
+extern TTF_Init
+extern TTF_Quit
+extern TTF_OpenFont
+extern TTF_RenderText_Solid
+extern TTF_CloseFont
+extern SDL_CreateTextureFromSurface
+extern SDL_FreeSurface
 
 
 process_input:
@@ -94,13 +105,112 @@ process_input:
     pop rbp
     ret
 
+; locals stack
+; void render_text(char* text /*(rdi)*/, int x /*(esi)/*, int y /*(edx)*/, int ptSize /*(ecx)*/);
+; char* text           // 8
+; int x                // 4
+; int y                // 4
+; int ptSize           // 4
+; {
+; TTF_Font* font;      // 8
+; TTF_Surface* surface // 8
+; SDL_Texture* texture // 8
+; SDL_Color color      // 4
+; SDL_Rect rect       // 16
+;                     //------
+;                     // 64
+; ....
+; }
+render_text:
+    push rbp
+    mov rbp, rsp
+
+    sub rsp, 64
+
+    ; move input params to stack vars
+    mov [rbp - 8], rdi ; text
+    mov [rbp - 12], esi ; x
+    mov [rbp - 16], edx ; y
+    mov [rbp - 20], ecx ; ptSize
+
+    lea rdi, [rel font_path]
+    mov esi, [rbp - 20] ; ptSize
+    call TTF_OpenFont wrt ..plt
+    test rax, rax
+    jz .end
+    mov [rbp -28], rax ; store font
+
+    ;SDL_Color color
+    mov byte [rbp - 48], 255 ; R
+    mov byte [rbp - 47], 255 ; G
+    mov byte [rbp - 46], 255 ; B
+    mov byte [rbp - 45], 255 ; A
+
+    ; TTF_RenderText_Solid
+    mov rdi, [rbp - 28] ; *font
+    mov rsi, [rbp - 8] ; *text
+    mov edx, [rbp - 48] ; color
+    call TTF_RenderText_Solid wrt ..plt
+    test rax, rax
+    jnz .skip0
+    call print_sdl_err
+    jmp .end_fnt
+.skip0:
+    mov [rbp - 36], rax ; *surface
+
+    ; SDL_CreateTextureFromSurface
+    mov rdi, [rel renderer]
+    mov rsi, [rbp - 36] ; *surface
+    call SDL_CreateTextureFromSurface wrt ..plt
+    test rax, rax
+    jnz .skip1
+    call print_sdl_err
+    jmp .end_srf
+.skip1:
+    mov [rbp - 44], rax ; *texture
+
+    ; set rect
+    mov eax, [rbp - 12] ; eax = x
+    mov [rbp - 64], eax ; rect.x = eax = x
+
+    mov eax, [rbp - 16] ; eax = y
+    mov [rbp - 60], eax ; rect.y = eax = y
+
+    mov rax, [rbp - 36] ; *surface
+    mov ecx, [rax + 16] ; ecx = surface->w
+    mov edx, [rax + 20] ; edx = surface->h
+
+    mov [rbp - 56], ecx ; rect.w = ecx = surface->w
+    mov [rbp - 52], edx ; rect.h  = edx = surface->h
+
+    ; SDL_RenderCopy(renderer, texture, NULL, &rect);
+    mov rdi, [rel renderer]
+    mov rsi, [rbp - 44] ; *texture
+    mov rdx, NULL
+    lea rcx, [rbp - 64] ; &rect
+    call SDL_RenderCopy wrt ..plt
+
+
+.end_text:
+    mov rdi, [rbp - 44] ; texture
+    call SDL_DestroyTexture wrt ..plt
+.end_srf:
+    mov rdi, [rbp - 36] ; surface
+    call SDL_FreeSurface wrt ..plt
+.end_fnt:
+    mov rdi, [rbp - 28] ; font
+    call TTF_CloseFont wrt ..plt
+.end:
+    add rsp, 64
+    pop rbp
+    ret
 
 
 render:
     push rbp
     mov rbp, rsp
 
-    sub rsp, 32
+    sub rsp, 48
 
     ; clear screen with green color
     mov rdi, [rel renderer] ; first parameter to this function is renderer
@@ -156,12 +266,24 @@ render:
     lea rsi, [rel ball]
     call SDL_RenderFillRect wrt ..plt
 
+    ; draw score lef player (player 1)
+    lea rdi, [rbp - 36] ; char buff[16]
+    mov rsi, 16
+    lea rdx, [rel int_format]
+    mov ecx, [rel score1]
+    call snprintf wrt ..plt
+    ; void render_text(char* text /*(rdi)*/, int x /*(esi)/*, int y /*(edx)*/, int ptSize /*(ecx)*/);
+    lea rdi, [rbp - 36] ; char buff[16]
+    mov esi, 50
+    mov edx, 20
+    mov ecx, 64
+    call render_text
 
 
     mov rdi, [rel renderer] ; first parameter to this function is renderer
     call SDL_RenderPresent wrt ..plt
 
-    add rsp, 32
+    add rsp, 48
     pop rbp
     ret
 
