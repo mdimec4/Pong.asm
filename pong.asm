@@ -245,7 +245,7 @@ render:
     lea rsi, [rbp - 20]
     call SDL_RenderFillRect wrt ..plt
 
-    mov eax, [rbp - 4] ; count++
+    mov eax, [rbp - 4] ; count=+40
     add eax, 40
     mov [rbp-4], eax
 
