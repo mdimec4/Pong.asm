@@ -18,6 +18,7 @@ default rel
 %define PADDLE_HEIGHT 100
 %define BALL_SIZE 15
 %define PADDLE_SPEED 8
+%define PADDLE_SPEED_AI 6
 %define BALL_SPEED_X 7
 %define BALL_SPEED_Y 7
 
@@ -43,7 +44,7 @@ section .data
     isRunning   db  1
     window      dq NULL
     renderer    dq NULL
-    paddle1AI   db 0
+    paddle1AI   db 1
     paddle2AI   db 0
 
 section .bss
@@ -174,6 +175,113 @@ process_input:
     pop rbp
     ret
 
+play_ai:
+
+    ; paddle1
+    mov BYTE dl, [rel paddle1AI]
+    test dl, dl
+    jz .skipPaddle1
+
+    mov edi, [rel paddle1 + 4] ; paddle1.y
+    add edi, PADDLE_HEIGHT_HALF
+
+    mov eax, [rel ballDirX]
+    cmp eax, 0
+    jge .ballMovesAwayFromPaddle1
+
+    mov esi, [rel ball + 4] ;ball.y
+
+    cmp edi, esi
+    jge .paddle1NotAboveBall
+
+    mov eax, [rel paddle1 + 4] ;paddle1.y
+    add eax, PADDLE_SPEED_AI
+    mov [rel paddle1 + 4], eax ;paddle1.y
+.paddle1NotAboveBall:
+    cmp edi, esi
+    jle .paddle1NotBelowBall
+
+    mov eax, [rel paddle1 + 4] ;paddle1.y
+    sub eax, PADDLE_SPEED_AI
+    mov [rel paddle1 + 4], eax ;paddle1.y
+
+.paddle1NotBelowBall:
+    jmp .skipPaddle1
+
+.ballMovesAwayFromPaddle1:
+    mov edx, SCREEN_HEIGHT_HALF
+    sub edx, PADDLE_HEIGHT_HALF ; centerY
+
+    cmp edi, edx
+    jle .paddle1NotAboveBallAway
+
+    mov eax, [rel paddle1 + 4] ;paddle1.y
+    sub eax, PADDLE_SPEED_AI
+    mov [rel paddle1 + 4], eax ;paddle1.y
+.paddle1NotAboveBallAway:
+    cmp edi, edx
+    jge .paddle1NotBelowBallAway
+
+    mov eax, [rel paddle1 + 4] ;paddle1.y
+    add eax, PADDLE_SPEED_AI
+    mov [rel paddle1 + 4], eax ;paddle1.y
+
+.paddle1NotBelowBallAway:
+.skipPaddle1:
+
+    ; paddle2
+    mov BYTE dl, [rel paddle2AI]
+    test dl, dl
+    jz .skipPaddle2
+
+    mov edi, [rel paddle2 + 4] ; paddle2.y
+    add edi, PADDLE_HEIGHT_HALF
+
+    mov eax, [rel ballDirX]
+    cmp eax, 0
+    jle .ballMovesAwayFromPaddle2
+
+    mov esi, [rel ball + 4] ;ball.y
+
+    cmp edi, esi
+    jge .paddle2NotAboveBall
+
+    mov eax, [rel paddle2 + 4] ;paddle1.y
+    add eax, PADDLE_SPEED_AI
+    mov [rel paddle2 + 4], eax ;paddle1.y
+.paddle2NotAboveBall:
+    cmp edi, esi
+    jle .paddle2NotBelowBall
+
+    mov eax, [rel paddle2 + 4] ;paddle2.y
+    sub eax, PADDLE_SPEED_AI
+    mov [rel paddle2 + 4], eax ;paddle2.y
+
+.paddle2NotBelowBall:
+    jmp .skipPaddle2
+
+.ballMovesAwayFromPaddle2:
+    mov edx, SCREEN_HEIGHT_HALF
+    sub edx, PADDLE_HEIGHT_HALF ; centerY
+
+    cmp edi, edx
+    jle .paddle2NotAboveBallAway
+
+    mov eax, [rel paddle2 + 4] ;paddle2.y
+    sub eax, PADDLE_SPEED_AI
+    mov [rel paddle2 + 4], eax ;paddle2.y
+.paddle2NotAboveBallAway:
+    cmp edi, edx
+    jge .paddle2NotBelowBallAway
+
+    mov eax, [rel paddle2 + 4] ;paddle2.y
+    add eax, PADDLE_SPEED_AI
+    mov [rel paddle2 + 4], eax ;paddle2.y
+
+.paddle2NotBelowBallAway:
+.skipPaddle2:
+ret
+
 clamp_pad:
     mov eax, [rdi] ; y
 
@@ -216,7 +324,6 @@ update:
     mov [rel ball + 4], eax
 
     ; limit ball movment in screen height direction 
-
     cmp eax, 0
     jge .geZero
     mov edi, [rel ballDirY]
@@ -258,7 +365,7 @@ update:
    mov edi, [rel paddle1 + 4] ; paddle1.y
    add edi, PADDLE_HEIGHT_HALF ; edi = paddle_center
    sub eax, edi
-   sar eax, 3
+   sar eax, 5
    
    mov [rel ballDirY], eax
 .paddle1NotHit:
@@ -284,9 +391,18 @@ update:
    mov edi, [rel paddle2 + 4] ; paddle2.y
    add edi, PADDLE_HEIGHT_HALF ; edi = paddle_center
    sub eax, edi
-   sar eax, 3
+   sar eax, 5
    mov [rel ballDirY], eax
 .paddle2NotHit:
+
+    ; let dirY never be zero
+    mov eax, [rel ballDirY]
+    test eax, eax
+    jnz .dirYNotZero
+
+    call ball_dir
+    mov [rel ballDirY], eax
+.dirYNotZero:
 
     mov eax, [rel ball + 0] ; ball.x
     cmp eax, 0
@@ -668,6 +784,8 @@ main:
     call process_events
 
     call process_input
+
+    call play_ai
 
     call update
     
