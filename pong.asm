@@ -27,9 +27,11 @@ BALL_X      equ     (SCREEN_WIDTH - BALL_SIZE) / 2
 BALL_Y      equ     (SCREEN_HEIGHT - BALL_SIZE) / 2
 SCREEN_WIDTH_HALF equ SCREEN_WIDTH / 2
 SCREEN_WIDTH_MINUS_50 equ SCREEN_WIDTH - 50
+SCREEN_HEIGHT_HALF equ SCREEN_HEIGHT / 2
 PADDLE_WIDTH_HALF  equ PADDLE_WIDTH / 2
 PADDLE_HEIGHT_HALF  equ PADDLE_HEIGHT / 2
 BALL_SIZE_HALF  equ BALL_SIZE / 2
+SCREEN_HEIGHT_MINUS_BALL_SIZE equ SCREEN_HEIGHT - BALL_SIZE
 
 section .rodata
     message     db 'Pong.ASM',0
@@ -234,6 +236,7 @@ update:
     mov [rel ball + 4], eax
 .leSCREEN_HEIGHT:
 
+
    ; ball hits left paddle1?
    lea rdi, [rel ball]
    lea rsi, [rel paddle1]
@@ -254,15 +257,9 @@ update:
 
    mov edi, [rel paddle1 + 4] ; paddle1.y
    add edi, PADDLE_HEIGHT_HALF ; edi = paddle_center
-   sub edi, eax
-   mov edx, 0
-   mov eax, edi
-   mov edi, 10
-   idiv edi
-   ;mov edi, eax
-
-   ;mov eax, [rel ballDirY]
-   ;mov eax, edi
+   sub eax, edi
+   sar eax, 3
+   
    mov [rel ballDirY], eax
 .paddle1NotHit:
 
@@ -286,15 +283,8 @@ update:
 
    mov edi, [rel paddle2 + 4] ; paddle2.y
    add edi, PADDLE_HEIGHT_HALF ; edi = paddle_center
-   sub edi, eax
-   mov edx, 0
-   mov eax, edi
-   mov edi, 10
-   idiv edi
-   ;mov edi, eax
-
-   ;mov eax, [rel ballDirY]
-   ;add eax, edi
+   sub eax, edi
+   sar eax, 3
    mov [rel ballDirY], eax
 .paddle2NotHit:
 
@@ -307,7 +297,7 @@ update:
     mov [rel score2], eax
 
     call reset_ball
-.notOutLeft
+.notOutLeft:
 
     mov eax, [rel ball + 0] ; ball.x
     cmp eax, SCREEN_WIDTH
@@ -318,7 +308,7 @@ update:
     mov [rel score1], eax
 
     call reset_ball
-.notOutRight
+.notOutRight:
 
     pop rbp
     ret
@@ -501,7 +491,7 @@ render:
     lea rdi, [rbp - 36] ; char buff[16]
     mov rsi, 16
     lea rdx, [rel int_format]
-    mov ecx, [rel score1]
+    mov ecx, [rel score2]
     call snprintf wrt ..plt
     mov ecx, 45
     imul ecx
