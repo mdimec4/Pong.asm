@@ -27,6 +27,9 @@ BALL_X      equ     (SCREEN_WIDTH - BALL_SIZE) / 2
 BALL_Y      equ     (SCREEN_HEIGHT - BALL_SIZE) / 2
 SCREEN_WIDTH_HALF equ SCREEN_WIDTH / 2
 SCREEN_WIDTH_MINUS_50 equ SCREEN_WIDTH - 50
+PADDLE_WIDTH_HALF  equ PADDLE_WIDTH / 2
+PADDLE_HEIGHT_HALF  equ PADDLE_HEIGHT / 2
+BALL_SIZE_HALF  equ BALL_SIZE / 2
 
 section .rodata
     message     db 'Pong.ASM',0
@@ -86,6 +89,7 @@ extern TTF_CloseFont
 extern SDL_CreateTextureFromSurface
 extern SDL_FreeSurface
 extern SDL_GetKeyboardState
+extern SDL_HasIntersection
 
 process_events:
     push rbp
@@ -164,6 +168,157 @@ process_input:
 .skipDOWN:
 
 .skipPaddle2:
+
+    pop rbp
+    ret
+
+clamp_pad:
+    mov eax, [rdi] ; y
+
+    cmp eax, 0
+    jge .geZero
+    mov eax, 0
+    mov [rdi], eax
+.geZero:
+
+    add eax, PADDLE_HEIGHT
+    cmp eax, SCREEN_HEIGHT
+    jle .leSCREEN_HEIGHT
+    mov eax, SCREEN_HEIGHT
+    sub eax, PADDLE_HEIGHT
+    mov [rdi], eax
+.leSCREEN_HEIGHT:
+    
+    ret
+
+update:
+    push rbp
+    mov rbp, rsp
+
+    lea rdi, [rel paddle1 + 4]
+    call clamp_pad
+
+    lea rdi, [rel paddle2 + 4]
+    call clamp_pad
+
+    ; ball.x += BALL_SPEED_X * ballDirX
+    mov eax, BALL_SPEED_X
+    imul eax, [rel ballDirX]
+    add eax, [rel ball + 0]
+    mov [rel ball + 0], eax
+
+    ; ball.y += BALL_SPEED_Y * ballDirY
+    mov eax, BALL_SPEED_Y
+    imul eax, [rel ballDirY]
+    add eax, [rel ball + 4]
+    mov [rel ball + 4], eax
+
+    ; limit ball movment in screen height direction 
+
+    cmp eax, 0
+    jge .geZero
+    mov edi, [rel ballDirY]
+    neg edi
+    mov [rel ballDirY], edi
+    mov [rel ball + 4], eax
+.geZero:
+
+    add eax, BALL_SIZE
+    cmp eax, SCREEN_HEIGHT
+    jle .leSCREEN_HEIGHT
+    mov edi, [rel ballDirY]
+    neg edi
+    mov [rel ballDirY], edi
+    mov eax, SCREEN_HEIGHT
+    sub eax, BALL_SIZE
+    mov [rel ball + 4], eax
+.leSCREEN_HEIGHT:
+
+   ; ball hits left paddle1?
+   lea rdi, [rel ball]
+   lea rsi, [rel paddle1]
+   call SDL_HasIntersection wrt ..plt
+   test eax, eax
+   jz .paddle1NotHit
+
+   mov eax, [rel paddle1 + 0] ; paddle1.x
+   add eax, PADDLE_WIDTH
+   mov [rel ball + 0], eax
+
+   mov eax, [rel ballDirX]
+   neg eax
+   mov [rel ballDirX], eax
+
+   mov eax, [rel ball + 4] ; ball.y
+   add eax, BALL_SIZE_HALF ; eax = ball_center
+
+   mov edi, [rel paddle1 + 4] ; paddle1.y
+   add edi, PADDLE_HEIGHT_HALF ; edi = paddle_center
+   sub edi, eax
+   mov edx, 0
+   mov eax, edi
+   mov edi, 10
+   idiv edi
+   ;mov edi, eax
+
+   ;mov eax, [rel ballDirY]
+   ;mov eax, edi
+   mov [rel ballDirY], eax
+.paddle1NotHit:
+
+   ; ball hits left paddle2?
+   lea rdi, [rel ball]
+   lea rsi, [rel paddle2]
+   call SDL_HasIntersection wrt ..plt
+   test eax, eax
+   jz .paddle2NotHit
+
+   mov eax, [rel paddle2 + 0] ; paddle2.x
+   sub eax, BALL_SIZE
+   mov [rel ball + 0], eax
+
+   mov eax, [rel ballDirX]
+   neg eax
+   mov [rel ballDirX], eax
+
+   mov eax, [rel ball + 4] ; ball.y
+   add eax, BALL_SIZE_HALF ; eax = ball_center
+
+   mov edi, [rel paddle2 + 4] ; paddle2.y
+   add edi, PADDLE_HEIGHT_HALF ; edi = paddle_center
+   sub edi, eax
+   mov edx, 0
+   mov eax, edi
+   mov edi, 10
+   idiv edi
+   ;mov edi, eax
+
+   ;mov eax, [rel ballDirY]
+   ;add eax, edi
+   mov [rel ballDirY], eax
+.paddle2NotHit:
+
+    mov eax, [rel ball + 0] ; ball.x
+    cmp eax, 0
+    jge .notOutLeft
+    
+    mov eax, [rel score2]
+    add eax, 1
+    mov [rel score2], eax
+
+    call reset_ball
+.notOutLeft
+
+    mov eax, [rel ball + 0] ; ball.x
+    cmp eax, SCREEN_WIDTH
+    jle .notOutRight
+    
+    mov eax, [rel score1]
+    add eax, 1
+    mov [rel score1], eax
+
+    call reset_ball
+.notOutRight
 
     pop rbp
     ret
@@ -523,6 +678,8 @@ main:
     call process_events
 
     call process_input
+
+    call update
     
     call render
 
