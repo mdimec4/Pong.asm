@@ -190,6 +190,7 @@ play_ai:
     jge .ballMovesAwayFromPaddle1
 
     mov esi, [rel ball + 4] ;ball.y
+    add esi, BALL_SIZE_HALF
 
     cmp edi, esi
     jge .paddle1NotAboveBall
@@ -242,6 +243,7 @@ play_ai:
     jle .ballMovesAwayFromPaddle2
 
     mov esi, [rel ball + 4] ;ball.y
+    add esi, BALL_SIZE_HALF
 
     cmp edi, esi
     jge .paddle2NotAboveBall
