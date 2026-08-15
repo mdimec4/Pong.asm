@@ -165,7 +165,6 @@ process_input:
 
 .skipPaddle2:
 
-.done:
     pop rbp
     ret
 
