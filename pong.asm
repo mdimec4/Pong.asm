@@ -6,7 +6,10 @@ default rel
 %define SDL_RENDERER_ACCELERATED    00000002h
 %define SDL_RENDERER_PRESENTVSYNC   00000004h
 %define SDL_QUIT    100h
-
+%define SDL_SCANCODE_S 22
+%define SDL_SCANCODE_W 26
+%define SDL_SCANCODE_DOWN 81
+%define SDL_SCANCODE_UP 82
 
 ; --- Configuration ---
 %define SCREEN_WIDTH 1024
@@ -35,6 +38,8 @@ section .data
     isRunning   db  1
     window      dq NULL
     renderer    dq NULL
+    paddle1AI   db 0
+    paddle2AI   db 0
 
 section .bss
     paddle1 resd    4 ; SDL_Rect for paddle left
@@ -80,9 +85,9 @@ extern TTF_RenderText_Solid
 extern TTF_CloseFont
 extern SDL_CreateTextureFromSurface
 extern SDL_FreeSurface
+extern SDL_GetKeyboardState
 
-
-process_input:
+process_events:
     push rbp
     mov rbp, rsp
 
@@ -103,6 +108,64 @@ process_input:
 
 .done:
     add rsp, 64
+    pop rbp
+    ret
+
+process_input:
+    push rbp
+    mov rbp, rsp
+
+    
+    mov rdi, NULL
+    call SDL_GetKeyboardState wrt ..plt
+
+    ; paddle1
+    mov BYTE dl, [rel paddle1AI]
+    test dl, dl
+    jnz .skipPaddle1
+    
+    mov BYTE dl, [rax + SDL_SCANCODE_W]
+    test dl, dl
+    jz .skipW
+    mov edi, [rel paddle1 + 4] ; paddle1.y
+    sub edi, PADDLE_SPEED
+    mov [rel paddle1 + 4], edi ; paddle1.y
+.skipW:
+
+    mov BYTE dl, [rax + SDL_SCANCODE_S]
+    test dl, dl
+    jz .skipS
+    mov edi, [rel paddle1 + 4] ; paddle1.y
+    add edi, PADDLE_SPEED
+    mov [rel paddle1 + 4], edi, ; paddle1.y
+.skipS:
+
+.skipPaddle1:
+
+    ; paddle1
+    mov BYTE dl, [rel paddle2AI]
+    test dl, dl
+    jnz .skipPaddle2
+    
+    mov BYTE dl, [rax + SDL_SCANCODE_UP]
+    test dl, dl
+    jz .skipUP
+    mov edi, [rel paddle2 + 4] ; paddle2.y
+    sub edi, PADDLE_SPEED
+    mov [rel paddle2 + 4], edi ; paddle2.y
+.skipUP:
+
+    mov BYTE dl, [rax + SDL_SCANCODE_DOWN]
+    test dl, dl
+    jz .skipDOWN
+    mov edi, [rel paddle2 + 4] ; paddle2.y
+    add edi, PADDLE_SPEED
+    mov [rel paddle2 + 4], edi, ; paddle2.y
+.skipDOWN:
+
+.skipPaddle2:
+
+.done:
     pop rbp
     ret
 
@@ -458,6 +521,8 @@ main:
     cmp al, 1
     jne .main_end
     
+    call process_events
+
     call process_input
     
     call render
