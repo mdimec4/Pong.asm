@@ -411,7 +411,7 @@ update:
     jge .notOutLeft
     
     mov eax, [rel score2]
-    add eax, 1
+    inc eax
     mov [rel score2], eax
 
     call reset_ball
@@ -422,7 +422,7 @@ update:
     jle .notOutRight
     
     mov eax, [rel score1]
-    add eax, 1
+    inc eax
     mov [rel score1], eax
 
     call reset_ball
