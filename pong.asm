@@ -149,7 +149,7 @@ process_input:
 
 .skipPaddle1:
 
-    ; paddle1
+    ; paddle2
     mov BYTE dl, [rel paddle2AI]
     test dl, dl
     jnz .skipPaddle2
